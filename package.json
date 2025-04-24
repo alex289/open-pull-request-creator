@@ -37,6 +37,14 @@
       ]
     }
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alex289/open-pull-request-creator.git"
+  },
+  "author": {
+    "name": "Alexander Konietzko",
+    "url": "https://alexanderkonietzko.vercel.app"
+  },
   "scripts": {
     "vscode:prepublish": "pnpm run package",
     "compile": "pnpm run check-types && pnpm run lint && node esbuild.js",
