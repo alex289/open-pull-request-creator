@@ -6,18 +6,36 @@
   "engines": {
     "vscode": "^1.99.0"
   },
+  "license": "MIT",
   "categories": [
     "Other"
   ],
-  "activationEvents": [],
+  "keywords": [
+    "pull request"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "extensionDependencies": [
+    "vscode.git"
+  ],
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
       {
         "command": "open-pull-request-creator.createPR",
-        "title": "PR Helper: Create Pull Request for Current Branch"
+        "title": "PR Helper: Create Pull Request for Current Branch",
+        "icon": "$(globe)"
       }
-    ]
+    ],
+    "menus": {
+      "scm/title": [
+        {
+          "command": "open-pull-request-creator.createPR",
+          "group": "navigation"
+        }
+      ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "pnpm run package",

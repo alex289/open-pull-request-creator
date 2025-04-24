@@ -1,57 +1,50 @@
 import * as vscode from 'vscode';
-import {
-  getCurrentBranchFromCLI,
-  getDefaultBranchFromCLI,
-  getOriginUrlFromCLI,
-  isGitRepo,
-} from './git';
+import { getGitApi } from './git';
 
 export function activate(context: vscode.ExtensionContext) {
+  console.log('[PR Helper] Extension "pr-after-commit-helper" activated.');
+
   const disposable = vscode.commands.registerCommand(
     'open-pull-request-creator.createPR',
-    async () => {
-      console.log('[PR Helper] Extension "pr-after-commit-helper" activated.');
-      if (!(await isGitRepo())) {
+    () => {
+      const git = getGitApi();
+
+      if (!git) {
+        console.error('[PR Helper] Git extension not found.');
         return;
       }
 
-      const currentBranch = await getCurrentBranchFromCLI();
-      if (!currentBranch) {
-        return;
-      }
-
-      const defaultBranch = await getDefaultBranchFromCLI();
-      if (!defaultBranch) {
-        return;
-      }
-
-      if (currentBranch === defaultBranch) {
-        console.log(
-          '[PR Helper] Current branch is the same as default branch. No PR needed.',
+      const repository = git.repositories[0];
+      if (!repository) {
+        vscode.window.showErrorMessage(
+          'No Git repository found in the current workspace.',
         );
         return;
       }
 
-      const originUrl = await getOriginUrlFromCLI();
+      const originUrl = repository.state.remotes.find(
+        (remote) => remote.name === 'origin',
+      )?.fetchUrl;
+
       if (!originUrl) {
+        vscode.window.showErrorMessage(
+          'No remote repository found in the current Git repository.',
+        );
         return;
       }
 
-      const openPRButton = 'Open Create PR Page';
-      vscode.window
-        .showInformationMessage(
-          `Create Pull Request for branch '${currentBranch}'?`,
-          openPRButton,
-        )
-        .then((selection) => {
-          if (selection === openPRButton) {
-            vscode.env.openExternal(
-              vscode.Uri.parse(
-                getPullRequestUrl(originUrl, currentBranch, defaultBranch),
-              ),
-            );
-          }
-        });
+      const currentBranch = repository.state.HEAD?.name;
+
+      if (!currentBranch) {
+        vscode.window.showErrorMessage(
+          'No current branch found in the Git repository.',
+        );
+        return;
+      }
+
+      vscode.env.openExternal(
+        vscode.Uri.parse(getPullRequestUrl(originUrl, currentBranch, 'main')),
+      );
     },
   );
 
@@ -72,8 +65,26 @@ function getPullRequestUrl(
   }
 
   if (originUrl.includes('dev.azure.com')) {
+    const atIndex = originUrl.indexOf('@');
+
+    if (atIndex === -1) {
+      return (
+        originUrl +
+        `/pullrequestcreate?sourceRef=${currentBranch}&targetRef=${defaultBranch}`
+      );
+    }
+
+    let newUrl = originUrl;
+
+    if (atIndex !== -1) {
+      newUrl = originUrl.substring(atIndex + 1);
+      const protocolEndIndex = newUrl.indexOf('//');
+      if (protocolEndIndex === -1) {
+        newUrl = 'https://' + newUrl;
+      }
+    }
     return (
-      originUrl +
+      newUrl +
       `/pullrequestcreate?sourceRef=${currentBranch}&targetRef=${defaultBranch}`
     );
   }
