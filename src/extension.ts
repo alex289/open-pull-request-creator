@@ -61,7 +61,13 @@ function getPullRequestUrl(
   defaultBranch: string,
 ): string {
   if (originUrl.startsWith('https://github.com')) {
-    return originUrl + '/compare/' + defaultBranch + '...' + currentBranch;
+    return (
+      originUrl.replace('.git', '') +
+      '/compare/' +
+      defaultBranch +
+      '...' +
+      currentBranch
+    );
   }
 
   if (originUrl.includes('dev.azure.com')) {
