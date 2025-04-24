@@ -2,42 +2,60 @@ import * as vscode from "vscode";
 import * as cp from "child_process";
 import * as util from "util"; // For promisify
 
-// Promisify exec for easier async/await usage
 const exec = util.promisify(cp.exec);
 
+export async function isGitRepo(): Promise<boolean> {
+  const workspaceFolders = vscode.workspace.workspaceFolders;
+  if (!workspaceFolders || workspaceFolders.length === 0) {
+    console.error("No workspace folder open.");
+    return false;
+  }
+  const cwd = workspaceFolders[0].uri.fsPath;
+
+  try {
+    const { stdout, stderr } = await exec(
+      "git rev-parse --is-inside-work-tree",
+      {
+        cwd,
+      },
+    );
+
+    if (stderr) {
+      console.error(`Git command stderr: ${stderr}`);
+      return false;
+    }
+
+    const isGitRepo = stdout.trim() === "true";
+    return isGitRepo;
+  } catch (error: any) {
+    console.error(`Failed to execute git command: ${error.message}`);
+    return false;
+  }
+}
+
 export async function getCurrentBranchFromCLI(): Promise<string | null> {
-  // Get the workspace folder path
   const workspaceFolders = vscode.workspace.workspaceFolders;
   if (!workspaceFolders || workspaceFolders.length === 0) {
     console.error("No workspace folder open.");
     return null;
   }
-  // Assuming the first workspace folder is the root of your git repo
   const cwd = workspaceFolders[0].uri.fsPath;
 
   try {
-    // Execute the git command to get the current branch name
-    const { stdout, stderr } = await exec("git rev-parse --abbrev-ref HEAD", {
+    const { stdout, stderr } = await exec("git branch --show-current", {
       cwd,
     });
 
     if (stderr) {
       console.error(`Git command stderr: ${stderr}`);
-      // Decide if stderr indicates a real error or just info
-      // For this command, stderr usually means an error (e.g., not a git repo)
       return null;
     }
 
-    // Trim whitespace (like the newline character) from the output
     const branchName = stdout.trim();
 
-    // Handle detached HEAD state
     if (branchName === "HEAD") {
       console.warn("Currently in detached HEAD state.");
-      // You might want to get the commit hash instead in this case
-      // const { stdout: commitHash } = await exec('git rev-parse HEAD', { cwd });
-      // return commitHash.trim();
-      return null; // Or handle as needed
+      return null;
     }
 
     return branchName;
@@ -51,31 +69,44 @@ export async function getCurrentBranchFromCLI(): Promise<string | null> {
 }
 
 export async function getDefaultBranchFromCLI(): Promise<string | null> {
-  // Get the workspace folder path
   const workspaceFolders = vscode.workspace.workspaceFolders;
   if (!workspaceFolders || workspaceFolders.length === 0) {
     console.error("No workspace folder open.");
     return null;
   }
-  // Assuming the first workspace folder is the root of your git repo
   const cwd = workspaceFolders[0].uri.fsPath;
 
   try {
-    // Execute the git command to get the default branch name
-    const { stdout, stderr } = await exec(
-      "git remote show origin | grep 'HEAD branch' | cut -d' ' -f3",
-      { cwd },
-    );
+    const { stdout, stderr } = await exec("git remote show origin", { cwd });
 
     if (stderr) {
       console.error(`Git command stderr: ${stderr}`);
       return null;
     }
 
-    // Trim whitespace (like the newline character) from the output
-    const defaultBranchName = stdout.trim();
+    const lines = stdout.split("\n");
+    const headBranchLine = lines.find((line) =>
+      line.trim().startsWith("HEAD branch:"),
+    );
 
-    return defaultBranchName;
+    if (headBranchLine) {
+      const branchName = headBranchLine.split(":")[1]?.trim();
+      if (branchName && branchName !== "(unknown)") {
+        console.log(
+          `[PR Helper] Detected default branch via remote show: ${branchName}`,
+        );
+        return branchName;
+      }
+      console.warn(
+        `[PR Helper] Could not parse branch name from 'git remote show' output line: ${headBranchLine}`,
+      );
+      return null;
+    }
+    console.warn(
+      `[PR Helper] 'HEAD branch:' line not found in 'git remote show origin' output.`,
+    );
+    console.log(`[PR Helper] Full output:\n${stdout}`);
+    return null;
   } catch (error: any) {
     console.error(`Failed to execute git command: ${error.message}`);
     vscode.window.showErrorMessage(
@@ -85,10 +116,29 @@ export async function getDefaultBranchFromCLI(): Promise<string | null> {
   }
 }
 
-// --- Inside your command or event handler ---
-// const currentBranch = await getCurrentBranchFromCLI();
-// if (currentBranch) {
-//    console.log(`Current branch (from CLI): ${currentBranch}`);
-//    // ... proceed to get remote URL (also via CLI) and build PR link
-// }
-// ---
+export async function getOriginUrlFromCLI(): Promise<string | null> {
+  const workspaceFolders = vscode.workspace.workspaceFolders;
+  if (!workspaceFolders || workspaceFolders.length === 0) {
+    console.error("No workspace folder open.");
+    return null;
+  }
+  const cwd = workspaceFolders[0].uri.fsPath;
+
+  try {
+    const { stdout, stderr } = await exec("git remote get-url origin", { cwd });
+
+    if (stderr) {
+      console.error(`Git command stderr: ${stderr}`);
+      return null;
+    }
+
+    const url = stdout.trim();
+    return url;
+  } catch (error: any) {
+    console.error(`Failed to execute git command: ${error.message}`);
+    vscode.window.showErrorMessage(
+      `Failed to get git remote URL: ${error.message}`,
+    );
+    return null;
+  }
+}
