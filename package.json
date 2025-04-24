@@ -41,6 +41,7 @@
     "type": "git",
     "url": "git+https://github.com/alex289/open-pull-request-creator.git"
   },
+  "publisher": "AlexanderKonietzko",
   "author": {
     "name": "Alexander Konietzko",
     "url": "https://alexanderkonietzko.vercel.app"
